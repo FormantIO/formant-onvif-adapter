@@ -1,0 +1,2 @@
+formant==1.58.*
+onvif_zeep==0.2.*
