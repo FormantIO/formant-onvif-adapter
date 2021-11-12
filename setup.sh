@@ -1,14 +1,18 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
-# enable all Ubuntu packages:
-sudo apt-add-repository universe
-sudo apt-add-repository multiverse
-sudo apt-add-repository restricted
+# Skip apt dependencies to avoid sudo
 
-sudo apt-get update
+# # enable all Ubuntu packages:
+# sudo apt-add-repository universe
+# sudo apt-add-repository multiverse
+# sudo apt-add-repository restricted
 
-# install python3 dependencies
-sudo apt-get -y install python3-pip
+# sudo apt-get update
+
+# # install python3 dependencies
+# sudo apt-get -y install python3-pip
 
 # install the formant python module
 pip3 install -r requirements.txt
+
+touch setup.lock
