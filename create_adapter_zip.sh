@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-zip formant-onvif-adapter.zip main.py start.sh setup.sh requirements.txt
+zip -r formant-onvif-adapter.zip ../formant-onvif-adapter 
