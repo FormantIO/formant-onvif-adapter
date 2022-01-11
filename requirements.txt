@@ -1,2 +1,3 @@
+isodate
 formant==1.61.*
 onvif_zeep==0.2.*
