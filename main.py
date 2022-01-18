@@ -1,5 +1,7 @@
+import os
 import time
 import json
+import pathlib
 import isodate
 import datetime
 
@@ -33,6 +35,7 @@ class FormantONVIFAdapter:
         self._zoom_rate = DEFAULT_ZOOM_RATE
         self._pan_rate = DEFAULT_PTZ_RATE
         self._tilt_rate = DEFAULT_PTZ_RATE
+        self._onvif_wsdl_path = os.path.join(str(pathlib.Path().resolve()), "ver10/wsdl")
         self._ptz_connected = False
         self._ptz_cam = None
         self._ptz_service = None
@@ -42,6 +45,7 @@ class FormantONVIFAdapter:
         self._encoder_config_options = None
         self._encoder_config = None
         self._camera_config_options = None
+        
        
         # Wait on ptz services
         while self._devicemgmt_service == None:
@@ -60,7 +64,8 @@ class FormantONVIFAdapter:
                 self._onvif_ip, 
                 self._onvif_port, 
                 self._onvif_username, 
-                self._onvif_password
+                self._onvif_password,
+                self._onvif_wsdl_path
             )
             
             self._ptz_service = self._ptz_cam.create_ptz_service()
