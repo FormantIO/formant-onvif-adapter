@@ -23,11 +23,6 @@ class FormantONVIFAdapter:
     def __init__(self):
         print("Initializing Formant ONVIF adapter")
 
-        # # Create Formant client and register callbacks
-        self._fclient = FormantClient(ignore_throttled=True, ignore_unavailable=True)
-        self._fclient.register_config_update_callback(self._start_restart)
-        self._fclient.create_event("ONVIF Adapter online", notify=False, severity="info")        
-        self._fclient.register_teleop_callback(self._handle_teleop)
 
         # Set up the PTZ camera properties
         self._move_timeout = CONTINUOUS_MOVE_TIMEOUT
@@ -35,7 +30,7 @@ class FormantONVIFAdapter:
         self._zoom_rate = DEFAULT_ZOOM_RATE
         self._pan_rate = DEFAULT_PTZ_RATE
         self._tilt_rate = DEFAULT_PTZ_RATE
-        self._onvif_wsdl_path = os.path.join(str(pathlib.Path().resolve()), "ver10/wsdl")
+        self._onvif_wsdl_path = os.path.join(str(pathlib.Path().resolve()), "ver10/wsdl/device")
         self._ptz_connected = False
         self._ptz_cam = None
         self._ptz_service = None
@@ -46,33 +41,51 @@ class FormantONVIFAdapter:
         self._encoder_config = None
         self._camera_config_options = None
         
+        # # Create Formant client and register callbacks
+        self._fclient = FormantClient(ignore_throttled=True, ignore_unavailable=True)
+        self._fclient.register_config_update_callback(self._start_restart)
+        self._fclient.create_event("ONVIF Adapter online", notify=False, severity="info")
+        self._fclient.register_teleop_callback(self._handle_teleop)
+
        
         # Wait on ptz services
         while self._devicemgmt_service == None:
             time.sleep(0.01)
 
         self._start_publishing_state()
-        
+
+    def _formant_log(self, log):
+        print(log)
+        if self._debug_mode:
+            self._fclient.post_text(
+                "onvif_adapter.info", log)
+            time.sleep(0.25)
+
     def _start_restart(self):
         print("restarting")
         try:
+            self._formant_log("updating config")
             # Pull and set config values
             self._update_config()
-
+            self._formant_log("Starting authentication")
             # Create camera node and services
             self._ptz_cam = ONVIFCamera(
                 self._onvif_ip, 
                 self._onvif_port, 
                 self._onvif_username, 
                 self._onvif_password,
-                self._onvif_wsdl_path
+                wsdl_dir=self._onvif_wsdl_path
             )
-            
+            self._formant_log("ONVIF camera initialized")
             self._ptz_service = self._ptz_cam.create_ptz_service()
-            self._devicemgmt_service = self._ptz_cam.create_devicemgmt_service()
-            self._media_service = self._ptz_cam.create_media_service()
-            self._master_token = self._media_service.GetProfiles()[0].Name
+            self._formant_log("PTZ service initialized")
 
+            self._devicemgmt_service = self._ptz_cam.create_devicemgmt_service()
+            self._formant_log("Device management initialized")
+            self._media_service = self._ptz_cam.create_media_service()
+            self._formant_log("Media service initialized")
+            self._master_token = self._media_service.GetProfiles()[0].Name
+            self._formant_log("Token received")
             # Publish the current encoder configuration
             self._encoder_config = self._media_service.GetVideoEncoderConfigurations({})
             encoder_config_str = {"encoder config": eval(self._encoder_config.__repr__())}
@@ -80,17 +93,26 @@ class FormantONVIFAdapter:
             self._fclient.post_json("onvif_adapter.encoder_config",encoder_config_json)
 
         except Exception as e:
-            self._fclient.post_text("onvif_adapter.errors", str(e))
+            self._fclient.post_text("onvif_adapter.errors", "Error starting: %s" % str(e))
 
     def _update_config(self):
         # Pull new values from app config if they exist
-        self._onvif_ip = str(self._fclient.get_app_config("onvif_ip", DEFAULT_ONVIF_IP))
-        self._onvif_port = str(self._fclient.get_app_config("onvif_port", DEFAULT_ONVIF_PORT))
-        self._onvif_username = str(self._fclient.get_app_config("onvif_username", DEFAULT_ONVIF_USERNAME))
-        self._onvif_password = str(self._fclient.get_app_config("onvif_password", DEFAULT_ONVIF_PASSWORD))
-        self._pan_rate = float(self._fclient.get_app_config("pan_rate", DEFAULT_PTZ_RATE))
-        self._tilt_rate = float(self._fclient.get_app_config("tilt_rate", DEFAULT_PTZ_RATE))
-        self._zoom_rate = float(self._fclient.get_app_config("zoom_rate", DEFAULT_ZOOM_RATE))
+        try:
+            self._formant_log("Starting config update")
+            self._onvif_ip = str(self._fclient.get_app_config("onvif_ip", DEFAULT_ONVIF_IP))
+            self._formant_log("IP: %s" % str(self._onvif_ip))
+            self._onvif_port = str(self._fclient.get_app_config("onvif_port", DEFAULT_ONVIF_PORT))
+            self._onvif_username = str(self._fclient.get_app_config("onvif_username", DEFAULT_ONVIF_USERNAME))
+            self._formant_log("Username: %s" % str(self._onvif_username))
+            self._onvif_password = str(self._fclient.get_app_config("onvif_password", DEFAULT_ONVIF_PASSWORD))
+            self._pan_rate = float(self._fclient.get_app_config("pan_rate", DEFAULT_PTZ_RATE))
+            self._tilt_rate = float(self._fclient.get_app_config("tilt_rate", DEFAULT_PTZ_RATE))
+            self._zoom_rate = float(self._fclient.get_app_config("zoom_rate", DEFAULT_ZOOM_RATE))
+            debug_string = self._fclient.get_app_config(
+                "debug_mode", "false")
+            self._debug_mode = debug_string in ["True", "true"]
+        except Exception as e:
+            self._formant_log("Failed config update %s" % str(e))
 
     def _set_ptz_connection_state(self, state):
         if (self._ptz_connected == False) and (state == True):
@@ -129,7 +151,7 @@ class FormantONVIFAdapter:
                 time.sleep(PUBLISH_THROTTLE_SECONDS)
 
             except Exception as e:
-                self._fclient.post_text("onvif_adapter.errors", str(e))
+                self._fclient.post_text("onvif_adapter.errors", "Error publishing state: %s" %  str(e))
 
                 # Try to restart if it fails
                 self._start_restart()
@@ -145,7 +167,7 @@ class FormantONVIFAdapter:
                 self._zoom_in_out(control)
 
         except Exception as e:
-            self._fclient.post_text("onvif_adapter.errors", str(e))
+            self._fclient.post_text("onvif_adapter.errors", "Error handling teleop: %s" %  str(e))
 
     def _pan_tilt(self, control):
         #  If any values are passed, move - otherwise stop.
