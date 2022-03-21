@@ -168,6 +168,8 @@ class FormantONVIFAdapter:
                 self._start_restart()
 
     def _handle_teleop(self, control):
+        if self._ptz_service is None:
+            return
         try:
             if control.stream.casefold() == "joystick".casefold():
                 # Handle the joystick to move the camera around
