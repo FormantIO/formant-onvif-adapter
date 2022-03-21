@@ -24,6 +24,8 @@ class FormantONVIFAdapter:
         print("Initializing Formant ONVIF adapter")
 
 
+        self._debug_mode = True
+        
         # Set up the PTZ camera properties
         self._move_timeout = CONTINUOUS_MOVE_TIMEOUT
         self._zoom_timeout = CONTINUOUS_MOVE_TIMEOUT
