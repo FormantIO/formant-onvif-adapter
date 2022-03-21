@@ -86,7 +86,16 @@ class FormantONVIFAdapter:
             self._formant_log("Device management initialized")
             self._media_service = self._ptz_cam.create_media_service()
             self._formant_log("Media service initialized")
-            self._master_token = self._media_service.GetProfiles()[0].Name
+            profile = self._media_service.GetProfiles()[0]
+            self._master_token = profile.Name
+
+            try:
+                self._ptz_token = profile.token
+            except Exception as e:
+                self._ptz_token = ""
+                self._formant_log("No Profile token : %s" % str(e))
+
+
             self._formant_log("Token received")
             # Publish the current encoder configuration
             self._encoder_config = self._media_service.GetVideoEncoderConfigurations({})
@@ -175,7 +184,7 @@ class FormantONVIFAdapter:
         #  If any values are passed, move - otherwise stop.
         if control.twist.linear.x or control.twist.angular.z:
             self._ptz_service.ContinuousMove({
-                "ProfileToken": self._master_token,
+                "ProfileToken": self._ptz_token,
                 "Velocity": {
                     "PanTilt": {
                         "x": self._pan_rate * control.twist.angular.z,
@@ -192,14 +201,14 @@ class FormantONVIFAdapter:
             if bit.value:
                 if bit.key == "zoom in":
                     self._ptz_service.ContinuousMove({
-                        "ProfileToken": self._master_token,
+                        "ProfileToken": self._ptz_token,
                         "Velocity": {"Zoom": {"x": self._zoom_rate}},
                         "Timeout": self._zoom_timeout
                     })
 
                 if bit.key == "zoom out":
                     self._ptz_service.ContinuousMove({
-                        "ProfileToken": self._master_token,
+                        "ProfileToken": self._ptz_token,
                         "Velocity": {"Zoom": {"x": self._zoom_rate * -1}},
                         "Timeout": self._zoom_timeout
                     })
@@ -208,7 +217,7 @@ class FormantONVIFAdapter:
                 self._stop_move()
 
     def _stop_move(self):
-        self._ptz_service.Stop({"ProfileToken": self._master_token})
+        self._ptz_service.Stop({"ProfileToken": self._ptz_token})
 
 
 if __name__ == "__main__":
